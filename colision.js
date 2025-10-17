@@ -1,124 +1,176 @@
 const canvas = document.getElementById("colision");
 let ctx = canvas.getContext("2d");
 
-const window_height = window.innerHeight;
-const window_width = window.innerWidth;
-canvas.height = window_height;
-canvas.width = window_width;
-canvas.style.background = "rgba(106, 75, 130, 1)";
-
-class Circle {
-  constructor(x, y, radius, color, text, speed) {
-    this.posX = x;
-    this.posY = y;
-    this.radius = radius;
-    this.originalColor = color;
-    this.color = color;
-    this.text = text;
-    this.speed = speed;
-    this.dx = (Math.random() < 0.5 ? -1 : 1) * this.speed;
-    this.dy = (Math.random() < 0.5 ? -1 : 1) * this.speed;
-    this.isColliding = false; // Indica si está en colisión
-  }
-
-  draw(context) {
-    context.beginPath();
-    context.strokeStyle = this.color;
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.font = "20px Arial";
-    context.fillText(this.text, this.posX, this.posY);
-    context.lineWidth = 2;
-    context.arc(this.posX, this.posY, this.radius, 0, Math.PI * 2, false);
-    context.stroke();
-    context.closePath();
-  }
-
-  update(context) {
-    this.posX += this.dx;
-    this.posY += this.dy;
-
-    // Rebote en los bordes
-    if (this.posX + this.radius > window_width || this.posX - this.radius < 0) {
-      this.dx = -this.dx;
-    }
-    if (this.posY + this.radius > window_height || this.posY - this.radius < 0) {
-      this.dy = -this.dy;
-    }
-
-    // Cambiar color si está en colisión
-    this.color = this.isColliding ? "#0000FF" : this.originalColor;
-
-    this.draw(context);
-
-    // Resetear el estado para la próxima detección
-    this.isColliding = false;
-  }
+// Crear o usar el contador de eliminados
+let removedCountDisplay = document.getElementById("removed-count");
+if (!removedCountDisplay) {
+    removedCountDisplay = document.createElement("div");
+    removedCountDisplay.id = "removed-count";
+    removedCountDisplay.style.position = "fixed";
+    removedCountDisplay.style.top = "10px";
+    removedCountDisplay.style.right = "20px";
+    removedCountDisplay.style.font = "bold 20px Arial";
+    removedCountDisplay.style.color = "#333";
+    document.body.appendChild(removedCountDisplay);
 }
 
-let circles = [];
+let removedCounter = 0;
+const NUM_OBJECTS = 20;
 
-function generateCircles(n) {
-  for (let i = 0; i < n; i++) {
-    let radius = Math.random() * 30 + 20;
-    let x = Math.random() * (window_width - radius * 2) + radius;
-    let y = Math.random() * (window_height - radius * 2) + radius;
-    let color = `#${Math.floor(Math.random()*16777215).toString(16)}`;
-    let speed = Math.random() * 4 + 1;
-    let text = `C${i + 1}`; // Etiqueta del círculo
-    circles.push(new Circle(x, y, radius, color, text, speed));
-  }
+// Canvas responsive
+let canvasWidth = window.innerWidth;
+let canvasHeight = window.innerHeight;
+
+function setCanvasSize() {
+    canvasWidth = window.innerWidth;
+    canvasHeight = window.innerHeight;
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    canvas.style.background = "#989bd5ff";
 }
 
-// Detección de colisiones con rebote visible
-function detectCollisions() {
-  for (let i = 0; i < circles.length; i++) {
-    for (let j = i + 1; j < circles.length; j++) {
-      let c1 = circles[i];
-      let c2 = circles[j];
+setCanvasSize();
+window.addEventListener("resize", setCanvasSize);
 
-      let dx = c2.posX - c1.posX;
-      let dy = c2.posY - c1.posY;
-      let distance = Math.sqrt(dx * dx + dy * dy);
-
-      if (distance < c1.radius + c2.radius) {
-        // Marcar como colisionando
-        c1.isColliding = true;
-        c2.isColliding = true;
-
-        // Calcular ángulo
-        let angle = Math.atan2(dy, dx);
-
-        // Separar ligeramente los círculos para evitar superposición
-        let overlap = (c1.radius + c2.radius - distance) / 2;
-        c1.posX -= Math.cos(angle) * overlap;
-        c1.posY -= Math.sin(angle) * overlap;
-        c2.posX += Math.cos(angle) * overlap;
-        c2.posY += Math.sin(angle) * overlap;
-
-        // Intercambiar velocidades
-        let tempDx = c1.dx;
-        let tempDy = c1.dy;
-        c1.dx = c2.dx;
-        c1.dy = c2.dy;
-        c2.dx = tempDx;
-        c2.dy = tempDy;
-      }
+// CLASE FIGURA (hexágono relleno)
+class Hexagon {
+    constructor(x, y, radius, color, speed) {
+        this.posX = x;
+        this.posY = y;
+        this.radius = radius;
+        this.color = color;
+        this.speed = speed;
+        this.dy = this.speed;
+        this.sides = 6; // Número de lados del hexágono
+        this.rotation = Math.random() * Math.PI * 2;
     }
+
+    draw(context) {
+        const step = (Math.PI * 2) / this.sides;
+        context.save();
+        context.beginPath();
+        context.translate(this.posX, this.posY);
+        context.rotate(this.rotation);
+        context.moveTo(this.radius * Math.cos(0), this.radius * Math.sin(0));
+
+        for (let i = 1; i <= this.sides; i++) {
+            const x = this.radius * Math.cos(i * step);
+            const y = this.radius * Math.sin(i * step);
+            context.lineTo(x, y);
+        }
+
+        context.closePath();
+        context.fillStyle = this.color;
+        context.shadowColor = this.color;
+        context.shadowBlur = 15;
+        context.fill();
+        context.restore();
+    }
+
+    update(context) {
+        this.posY += this.dy;
+        this.rotation += 0.01; // Rotación ligera para dinamismo
+
+        // Si llega al fondo, reaparece arriba
+        if (this.posY - this.radius > canvasHeight) {
+            this.posY = -this.radius;
+            this.posX = Math.random() * (canvasWidth - this.radius * 2) + this.radius;
+        }
+
+        this.draw(context);
+    }
+}
+
+// UTILIDADES
+
+function getRandomColor() {
+    const colors = [
+        "#ff1818ff", "#7e670bff", "#138122ff",
+        "#1554acff", "#85071aff", "#c02a05ff",
+        "#38146dff", "#33766dff"
+    ];
+    return colors[Math.floor(Math.random() * colors.length)];
+}
+
+// Efecto de sonido “pop”
+function playPopSound() {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.type = "square";
+    oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.15);
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.15);
+}
+
+
+// INTERACCIÓN DE CLIC
+
+canvas.addEventListener("click", (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+
+    for (let i = 0; i < objects.length; i++) {
+        const o = objects[i];
+        const dx = mouseX - o.posX;
+        const dy = mouseY - o.posY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // Si se clicó sobre la figura
+        if (distance <= o.radius) {
+            removedCounter++;
+            playPopSound();
+
+            // Crear nueva figura para reemplazarla (no reduce el total)
+            const radius = Math.random() * 20 + 15;
+            const x = Math.random() * (canvasWidth - radius * 2) + radius;
+            const y = -radius;
+            const color = getRandomColor();
+            const speed = Math.random() * 2 + 1;
+            objects[i] = new Hexagon(x, y, radius, color, speed);
+
+            break;
+        }
+    }
+
+    removedCountDisplay.textContent = `Eliminados: ${removedCounter}`;
   }
+);
+
+
+// GENERACIÓN Y LOOP
+
+let objects = [];
+
+function generateObjects(n) {
+    objects = [];
+    for (let i = 0; i < n; i++) {
+        const radius = Math.random() * 20 + 15;
+        const x = Math.random() * (canvasWidth - radius * 2) + radius;
+        const y = -Math.random() * 200 - radius;
+        const color = getRandomColor();
+        const speed = Math.random() * 2 + 1;
+        objects.push(new Hexagon(x, y, radius, color, speed));
+    }
 }
 
 function animate() {
-  ctx.clearRect(0, 0, window_width, window_height);
-
-  detectCollisions();
-
-  circles.forEach((circle) => {
-    circle.update(ctx);
-  });
-
-  requestAnimationFrame(animate);
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    objects.forEach(obj => obj.update(ctx));
+    requestAnimationFrame(animate);
 }
 
-generateCircles(20);
+
+// EJECUCIÓN
+
+generateObjects(NUM_OBJECTS);
+removedCountDisplay.textContent = "Eliminados: 0";
 animate();
