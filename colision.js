@@ -174,3 +174,4 @@ function animate() {
 generateObjects(NUM_OBJECTS);
 removedCountDisplay.textContent = "Eliminados: 0";
 animate();
+//final
